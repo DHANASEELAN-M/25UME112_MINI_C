@@ -35,6 +35,7 @@ void logTransaction(const char *message);
 void sortAccountsByBalance(const struct clientData clients[]);
 void sortAccountsByName(const struct clientData clients[]);
 void backupDatabase(const struct clientData clients[]);
+void restoreDatabase(struct clientData clients[]);
 void clearInputBuffer(void);
 
 int main(int argc, char *argv[])
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
     }
 
     // enable user to specify action in-memory
-    while ((choice = enterChoice()) != 15)
+    while ((choice = enterChoice()) != 16)
     {
         switch (choice)
         {
@@ -102,6 +103,9 @@ int main(int argc, char *argv[])
             break;
         case 14:
             backupDatabase(clients);
+            break;
+        case 15:
+            restoreDatabase(clients);
             break;
         case 0:
             puts("Incorrect choice. Please enter a number.");
@@ -465,6 +469,24 @@ void exportCSV(const struct clientData clients[])
     }
 }
 
+// qsort comparator: descending by balance
+int compareByBalance(const void *a, const void *b)
+{
+    const struct clientData *clientA = (const struct clientData *)a;
+    const struct clientData *clientB = (const struct clientData *)b;
+    if (clientA->balance < clientB->balance) return 1;
+    if (clientA->balance > clientB->balance) return -1;
+    return 0;
+}
+
+// qsort comparator: alphabetical by last name
+int compareByName(const void *a, const void *b)
+{
+    const struct clientData *clientA = (const struct clientData *)a;
+    const struct clientData *clientB = (const struct clientData *)b;
+    return strcmp(clientA->lastName, clientB->lastName);
+}
+
 // sort and list accounts by balance (richest to poorest)
 void sortAccountsByBalance(const struct clientData clients[])
 {
@@ -478,16 +500,8 @@ void sortAccountsByBalance(const struct clientData clients[])
         }
     }
 
-    // bubble sort descending
-    for (int i = 0; i < count - 1; i++) {
-        for (int j = 0; j < count - i - 1; j++) {
-            if (activeClients[j].balance < activeClients[j+1].balance) {
-                struct clientData temp = activeClients[j];
-                activeClients[j] = activeClients[j+1];
-                activeClients[j+1] = temp;
-            }
-        }
-    }
+    // efficient O(N log N) sorting using standard library qsort
+    qsort(activeClients, count, sizeof(struct clientData), compareByBalance);
 
     printf("\n--- LEADERBOARD: ACCOUNTS BY BALANCE ---\n");
     printf("%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
@@ -508,16 +522,8 @@ void sortAccountsByName(const struct clientData clients[])
         }
     }
 
-    // bubble sort alphabetical
-    for (int i = 0; i < count - 1; i++) {
-        for (int j = 0; j < count - i - 1; j++) {
-            if (strcmp(activeClients[j].lastName, activeClients[j+1].lastName) > 0) {
-                struct clientData temp = activeClients[j];
-                activeClients[j] = activeClients[j+1];
-                activeClients[j+1] = temp;
-            }
-        }
-    }
+    // efficient O(N log N) sorting using standard library qsort
+    qsort(activeClients, count, sizeof(struct clientData), compareByName);
 
     printf("\n--- DIRECTORY: ALPHABETICAL BY LAST NAME ---\n");
     printf("%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
@@ -540,6 +546,20 @@ void backupDatabase(const struct clientData clients[])
     }
 }
 
+// restore the database from a backup file
+void restoreDatabase(struct clientData clients[])
+{
+    FILE *backupPtr;
+    if ((backupPtr = fopen("credit_backup.dat", "rb")) != NULL) {
+        fread(clients, sizeof(struct clientData), MAX_RECORDS, backupPtr);
+        fclose(backupPtr);
+        printf("Database successfully restored from credit_backup.dat (Undo complete).\n");
+        logTransaction("System restored from backup file.");
+    } else {
+        printf("Error: Could not locate credit_backup.dat. Backup must be created first.\n");
+    }
+}
+
 // enable user to input menu choice
 unsigned int enterChoice(void)
 {
@@ -559,7 +579,8 @@ unsigned int enterChoice(void)
                  "12 - sort accounts by balance\n"
                  "13 - sort accounts alphabetically\n"
                  "14 - backup database to file\n"
-                 "15 - end program\n? ");
+                 "15 - restore database from backup\n"
+                 "16 - end program\n? ");
 
     if (scanf("%u", &menuChoice) != 1) {
         clearInputBuffer();
