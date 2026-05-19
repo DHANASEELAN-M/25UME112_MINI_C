@@ -26,6 +26,9 @@ void deleteRecord(struct clientData clients[]);
 void listAccounts(const struct clientData clients[]);
 void searchByLastName(const struct clientData clients[]);
 void calculateTotalBalance(const struct clientData clients[]);
+void transferFunds(struct clientData clients[]);
+void applyInterest(struct clientData clients[]);
+void listOverdrafts(const struct clientData clients[]);
 void clearInputBuffer(void);
 
 int main(int argc, char *argv[])
@@ -48,7 +51,7 @@ int main(int argc, char *argv[])
     }
 
     // enable user to specify action in-memory
-    while ((choice = enterChoice()) != 8)
+    while ((choice = enterChoice()) != 11)
     {
         switch (choice)
         {
@@ -72,6 +75,15 @@ int main(int argc, char *argv[])
             break;
         case 7:
             calculateTotalBalance(clients);
+            break;
+        case 8:
+            transferFunds(clients);
+            break;
+        case 9:
+            applyInterest(clients);
+            break;
+        case 10:
+            listOverdrafts(clients);
             break;
         case 0:
             puts("Incorrect choice. Please enter a number.");
@@ -299,6 +311,85 @@ void calculateTotalBalance(const struct clientData clients[])
     printf("\nTotal Bank Balance across %d active accounts: $%.2f\n", count, total);
 }
 
+// transfer funds between two accounts
+void transferFunds(struct clientData clients[])
+{
+    unsigned int fromAccount, toAccount;
+    double amount;
+
+    printf("Enter sender account number ( 1 - 100 ): ");
+    if (scanf("%u", &fromAccount) != 1) {
+        clearInputBuffer();
+        printf("Invalid input.\n");
+        return;
+    }
+    if (fromAccount < 1 || fromAccount > MAX_RECORDS || clients[fromAccount - 1].acctNum == 0) {
+        printf("Invalid or inactive sender account.\n");
+        return;
+    }
+
+    printf("Enter receiver account number ( 1 - 100 ): ");
+    if (scanf("%u", &toAccount) != 1) {
+        clearInputBuffer();
+        printf("Invalid input.\n");
+        return;
+    }
+    if (toAccount < 1 || toAccount > MAX_RECORDS || clients[toAccount - 1].acctNum == 0) {
+        printf("Invalid or inactive receiver account.\n");
+        return;
+    }
+
+    printf("Enter amount to transfer: ");
+    if (scanf("%lf", &amount) != 1 || amount <= 0) {
+        clearInputBuffer();
+        printf("Invalid transfer amount.\n");
+        return;
+    }
+
+    clients[fromAccount - 1].balance -= amount;
+    clients[toAccount - 1].balance += amount;
+
+    printf("Successfully transferred $%.2f from Account #%u to Account #%u.\n", amount, fromAccount, toAccount);
+}
+
+// apply 5% interest to all positive balances
+void applyInterest(struct clientData clients[])
+{
+    int count = 0;
+    for (size_t i = 0; i < MAX_RECORDS; ++i)
+    {
+        if (clients[i].acctNum != 0 && clients[i].balance > 0)
+        {
+            clients[i].balance += clients[i].balance * 0.05;
+            count++;
+        }
+    }
+    printf("Applied 5%% interest to %d accounts.\n", count);
+}
+
+// list all accounts with negative balances
+void listOverdrafts(const struct clientData clients[])
+{
+    int count = 0;
+    printf("\n%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
+    printf("---------------------------------------------\n");
+
+    for (size_t i = 0; i < MAX_RECORDS; ++i)
+    {
+        if (clients[i].acctNum != 0 && clients[i].balance < 0)
+        {
+            printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        printf("No accounts currently in overdraft.\n");
+    } else {
+        printf("Total overdraft accounts: %d\n", count);
+    }
+}
+
 // enable user to input menu choice
 unsigned int enterChoice(void)
 {
@@ -311,7 +402,10 @@ unsigned int enterChoice(void)
                  "5 - list all accounts to console\n"
                  "6 - search account by last name\n"
                  "7 - calculate total bank balance\n"
-                 "8 - end program\n? ");
+                 "8 - transfer funds between accounts\n"
+                 "9 - apply 5%% interest to active balances\n"
+                 "10 - list overdraft (negative balance) accounts\n"
+                 "11 - end program\n? ");
 
     if (scanf("%u", &menuChoice) != 1) {
         clearInputBuffer();
