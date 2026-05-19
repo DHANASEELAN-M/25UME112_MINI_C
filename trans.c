@@ -32,6 +32,9 @@ void transferFunds(struct clientData clients[]);
 void applyInterest(struct clientData clients[]);
 void listOverdrafts(const struct clientData clients[]);
 void logTransaction(const char *message);
+void sortAccountsByBalance(const struct clientData clients[]);
+void sortAccountsByName(const struct clientData clients[]);
+void backupDatabase(const struct clientData clients[]);
 void clearInputBuffer(void);
 
 int main(int argc, char *argv[])
@@ -54,7 +57,7 @@ int main(int argc, char *argv[])
     }
 
     // enable user to specify action in-memory
-    while ((choice = enterChoice()) != 12)
+    while ((choice = enterChoice()) != 15)
     {
         switch (choice)
         {
@@ -90,6 +93,15 @@ int main(int argc, char *argv[])
             break;
         case 11:
             exportCSV(clients);
+            break;
+        case 12:
+            sortAccountsByBalance(clients);
+            break;
+        case 13:
+            sortAccountsByName(clients);
+            break;
+        case 14:
+            backupDatabase(clients);
             break;
         case 0:
             puts("Incorrect choice. Please enter a number.");
@@ -453,6 +465,81 @@ void exportCSV(const struct clientData clients[])
     }
 }
 
+// sort and list accounts by balance (richest to poorest)
+void sortAccountsByBalance(const struct clientData clients[])
+{
+    struct clientData activeClients[MAX_RECORDS];
+    int count = 0;
+
+    // extract active accounts
+    for (size_t i = 0; i < MAX_RECORDS; ++i) {
+        if (clients[i].acctNum != 0) {
+            activeClients[count++] = clients[i];
+        }
+    }
+
+    // bubble sort descending
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = 0; j < count - i - 1; j++) {
+            if (activeClients[j].balance < activeClients[j+1].balance) {
+                struct clientData temp = activeClients[j];
+                activeClients[j] = activeClients[j+1];
+                activeClients[j+1] = temp;
+            }
+        }
+    }
+
+    printf("\n--- LEADERBOARD: ACCOUNTS BY BALANCE ---\n");
+    printf("%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
+    for (int i = 0; i < count; i++) {
+        printf("%-6u%-16s%-11s%10.2f\n", activeClients[i].acctNum, activeClients[i].lastName, activeClients[i].firstName, activeClients[i].balance);
+    }
+}
+
+// sort and list accounts alphabetically by last name
+void sortAccountsByName(const struct clientData clients[])
+{
+    struct clientData activeClients[MAX_RECORDS];
+    int count = 0;
+
+    for (size_t i = 0; i < MAX_RECORDS; ++i) {
+        if (clients[i].acctNum != 0) {
+            activeClients[count++] = clients[i];
+        }
+    }
+
+    // bubble sort alphabetical
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = 0; j < count - i - 1; j++) {
+            if (strcmp(activeClients[j].lastName, activeClients[j+1].lastName) > 0) {
+                struct clientData temp = activeClients[j];
+                activeClients[j] = activeClients[j+1];
+                activeClients[j+1] = temp;
+            }
+        }
+    }
+
+    printf("\n--- DIRECTORY: ALPHABETICAL BY LAST NAME ---\n");
+    printf("%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
+    for (int i = 0; i < count; i++) {
+        printf("%-6u%-16s%-11s%10.2f\n", activeClients[i].acctNum, activeClients[i].lastName, activeClients[i].firstName, activeClients[i].balance);
+    }
+}
+
+// create a secure backup copy of the database
+void backupDatabase(const struct clientData clients[])
+{
+    FILE *backupPtr;
+    if ((backupPtr = fopen("credit_backup.dat", "wb")) != NULL) {
+        fwrite(clients, sizeof(struct clientData), MAX_RECORDS, backupPtr);
+        fclose(backupPtr);
+        printf("Database successfully backed up to credit_backup.dat\n");
+        logTransaction("System backup generated.");
+    } else {
+        printf("Error: Could not create backup file.\n");
+    }
+}
+
 // enable user to input menu choice
 unsigned int enterChoice(void)
 {
@@ -469,7 +556,10 @@ unsigned int enterChoice(void)
                  "9 - apply 5%% interest to active balances\n"
                  "10 - list overdraft (negative balance) accounts\n"
                  "11 - export database to CSV\n"
-                 "12 - end program\n? ");
+                 "12 - sort accounts by balance\n"
+                 "13 - sort accounts alphabetically\n"
+                 "14 - backup database to file\n"
+                 "15 - end program\n? ");
 
     if (scanf("%u", &menuChoice) != 1) {
         clearInputBuffer();
