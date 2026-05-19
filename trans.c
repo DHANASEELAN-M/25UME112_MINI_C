@@ -43,12 +43,10 @@ int main(int argc, char *argv[])
         }
         else
         {
-            // Initialize the file with 100 blank records
-            struct clientData blankClient = {0, "", "", 0.0};
-            for (unsigned int i = 1; i <= 100; ++i)
-            {
-                fwrite(&blankClient, sizeof(struct clientData), 1, cfPtr);
-            }
+            // Initialize the file with 100 blank records efficiently using a single bulk write
+            struct clientData blankClients[100];
+            memset(blankClients, 0, sizeof(blankClients));
+            fwrite(blankClients, sizeof(struct clientData), 100, cfPtr);
             rewind(cfPtr); // sets pointer to beginning of file
         }
     }
