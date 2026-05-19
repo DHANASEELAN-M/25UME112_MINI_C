@@ -1,9 +1,12 @@
-// Bank-account program reads a random-access file sequentially,
-// updates data already written to the file, creates new data to
-// be placed in the file, and deletes data previously in the file.
+// Bank-account program (Ultra-Efficient In-Memory Version)
+// Reads a random-access file into memory sequentially,
+// updates data in RAM, creates new data in RAM, and deletes data in RAM.
+// Persists the entire RAM array back to disk sequentially on program exit.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MAX_RECORDS 100
 
 // clientData structure definition
 struct clientData
@@ -12,73 +15,65 @@ struct clientData
     char lastName[15];    // account last name
     char firstName[10];   // account first name
     double balance;       // account balance
-};                        // end structure clientData
+};
 
 // prototypes
 unsigned int enterChoice(void);
-void textFile(FILE *readPtr);
-void updateRecord(FILE *fPtr);
-void newRecord(FILE *fPtr);
-void deleteRecord(FILE *fPtr);
-void listAccounts(FILE *fPtr);
-void searchByLastName(FILE *fPtr);
-void calculateTotalBalance(FILE *fPtr);
+void textFile(const struct clientData clients[]);
+void updateRecord(struct clientData clients[]);
+void newRecord(struct clientData clients[]);
+void deleteRecord(struct clientData clients[]);
+void listAccounts(const struct clientData clients[]);
+void searchByLastName(const struct clientData clients[]);
+void calculateTotalBalance(const struct clientData clients[]);
 void clearInputBuffer(void);
-int readRecord(FILE *fPtr, unsigned int accountNum, struct clientData *client);
-void writeRecord(FILE *fPtr, unsigned int accountNum, const struct clientData *client);
 
 int main(int argc, char *argv[])
 {
-    FILE *cfPtr;         // credit.dat file pointer
-    unsigned int choice; // user's choice
+    struct clientData clients[MAX_RECORDS];
+    FILE *cfPtr;
+    unsigned int choice;
 
-    // fopen opens the file; exits if file cannot be opened
-    if ((cfPtr = fopen("credit.dat", "rb+")) == NULL)
+    // Load database into memory (Extremely efficient - 1 bulk read)
+    memset(clients, 0, sizeof(clients));
+    if ((cfPtr = fopen("credit.dat", "rb")) != NULL)
     {
-        printf("File could not be opened, attempting to create...\n");
-        if ((cfPtr = fopen("credit.dat", "wb+")) == NULL)
-        {
-            printf("%s: File could not be created.\n", argv[0]);
-            exit(-1);
-        }
-        else
-        {
-            // Initialize the file with 100 blank records efficiently using a single bulk write
-            struct clientData blankClients[100];
-            memset(blankClients, 0, sizeof(blankClients));
-            fwrite(blankClients, sizeof(struct clientData), 100, cfPtr);
-            rewind(cfPtr); // sets pointer to beginning of file
-        }
+        fread(clients, sizeof(struct clientData), MAX_RECORDS, cfPtr);
+        fclose(cfPtr);
+        printf("Database loaded successfully into memory.\n");
+    }
+    else
+    {
+        printf("File could not be opened, starting with a fresh in-memory database.\n");
     }
 
-    // enable user to specify action
+    // enable user to specify action in-memory
     while ((choice = enterChoice()) != 8)
     {
         switch (choice)
         {
         case 1:
-            textFile(cfPtr);
+            textFile(clients);
             break;
         case 2:
-            updateRecord(cfPtr);
+            updateRecord(clients);
             break;
         case 3:
-            newRecord(cfPtr);
+            newRecord(clients);
             break;
         case 4:
-            deleteRecord(cfPtr);
+            deleteRecord(clients);
             break;
         case 5:
-            listAccounts(cfPtr);
+            listAccounts(clients);
             break;
         case 6:
-            searchByLastName(cfPtr);
+            searchByLastName(clients);
             break;
         case 7:
-            calculateTotalBalance(cfPtr);
+            calculateTotalBalance(clients);
             break;
         case 0:
-            // 0 is returned when scanf fails to read an integer
             puts("Incorrect choice. Please enter a number.");
             break;
         default:
@@ -87,7 +82,18 @@ int main(int argc, char *argv[])
         } // end switch
     }     // end while
 
-    fclose(cfPtr); // fclose closes the file
+    // Save database back to disk on exit (Extremely efficient - 1 bulk write)
+    if ((cfPtr = fopen("credit.dat", "wb")) != NULL)
+    {
+        fwrite(clients, sizeof(struct clientData), MAX_RECORDS, cfPtr);
+        fclose(cfPtr);
+        printf("Database successfully saved to disk.\n");
+    }
+    else
+    {
+        printf("Error: Could not save database to disk.\n");
+    }
+
     return 0;
 } // end main
 
@@ -98,26 +104,10 @@ void clearInputBuffer(void)
     while ((c = getchar()) != '\n' && c != EOF);
 }
 
-// read a record from file safely
-int readRecord(FILE *fPtr, unsigned int accountNum, struct clientData *client)
-{
-    fseek(fPtr, (accountNum - 1) * sizeof(struct clientData), SEEK_SET);
-    return fread(client, sizeof(struct clientData), 1, fPtr);
-}
-
-// write a record to file safely
-void writeRecord(FILE *fPtr, unsigned int accountNum, const struct clientData *client)
-{
-    fseek(fPtr, (accountNum - 1) * sizeof(struct clientData), SEEK_SET);
-    fwrite(client, sizeof(struct clientData), 1, fPtr);
-}
-
 // create formatted text file for printing
-void textFile(FILE *readPtr)
+void textFile(const struct clientData clients[])
 {
     FILE *writePtr; // accounts.txt file pointer
-    struct clientData clients[10];
-    size_t recordsRead;
 
     if ((writePtr = fopen("accounts.txt", "w")) == NULL)
     {
@@ -125,17 +115,13 @@ void textFile(FILE *readPtr)
     }
     else
     {
-        rewind(readPtr); // sets pointer to beginning of file
         fprintf(writePtr, "%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
 
-        while ((recordsRead = fread(clients, sizeof(struct clientData), 10, readPtr)) > 0)
+        for (size_t i = 0; i < MAX_RECORDS; ++i)
         {
-            for (size_t i = 0; i < recordsRead; ++i)
+            if (clients[i].acctNum != 0)
             {
-                if (clients[i].acctNum != 0)
-                {
-                    fprintf(writePtr, "%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
-                }
+                fprintf(writePtr, "%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
             }
         }
 
@@ -145,11 +131,10 @@ void textFile(FILE *readPtr)
 } // end function textFile
 
 // update balance in record
-void updateRecord(FILE *fPtr)
+void updateRecord(struct clientData clients[])
 {
     unsigned int account; // account number
     double transaction;   // transaction amount
-    struct clientData client = {0, "", "", 0.0};
 
     printf("Enter account to update ( 1 - 100 ): ");
     if (scanf("%u", &account) != 1) {
@@ -158,21 +143,19 @@ void updateRecord(FILE *fPtr)
         return;
     }
 
-    if (account < 1 || account > 100)
+    if (account < 1 || account > MAX_RECORDS)
     {
         printf("Invalid account number.\n");
         return;
     }
 
-    readRecord(fPtr, account, &client);
-
-    if (client.acctNum == 0)
+    if (clients[account - 1].acctNum == 0)
     {
         printf("Account #%u has no information.\n", account);
     }
     else
     {
-        printf("%-6u%-16s%-11s%10.2f\n\n", client.acctNum, client.lastName, client.firstName, client.balance);
+        printf("%-6u%-16s%-11s%10.2f\n\n", clients[account - 1].acctNum, clients[account - 1].lastName, clients[account - 1].firstName, clients[account - 1].balance);
 
         printf("Enter charge ( + ) or payment ( - ): ");
         if (scanf("%lf", &transaction) != 1) {
@@ -180,20 +163,16 @@ void updateRecord(FILE *fPtr)
             printf("Invalid transaction amount.\n");
             return;
         }
-        client.balance += transaction; // update record balance
+        clients[account - 1].balance += transaction; // update record balance
 
-        printf("%-6u%-16s%-11s%10.2f\n", client.acctNum, client.lastName, client.firstName, client.balance);
-
-        writeRecord(fPtr, account, &client);
+        printf("%-6u%-16s%-11s%10.2f\n", clients[account - 1].acctNum, clients[account - 1].lastName, clients[account - 1].firstName, clients[account - 1].balance);
         printf("Account updated successfully.\n");
     }
 } // end function updateRecord
 
 // delete an existing record
-void deleteRecord(FILE *fPtr)
+void deleteRecord(struct clientData clients[])
 {
-    struct clientData client;                       
-    struct clientData blankClient = {0, "", "", 0}; 
     unsigned int accountNum;                        
 
     printf("Enter account number to delete ( 1 - 100 ): ");
@@ -203,29 +182,27 @@ void deleteRecord(FILE *fPtr)
         return;
     }
 
-    if (accountNum < 1 || accountNum > 100)
+    if (accountNum < 1 || accountNum > MAX_RECORDS)
     {
         printf("Invalid account number.\n");
         return;
     }
 
-    readRecord(fPtr, accountNum, &client);
-
-    if (client.acctNum == 0)
+    if (clients[accountNum - 1].acctNum == 0)
     {
         printf("Account %u does not exist.\n", accountNum);
     }
     else
     {
-        writeRecord(fPtr, accountNum, &blankClient);
+        // wipe the struct memory clean
+        memset(&clients[accountNum - 1], 0, sizeof(struct clientData));
         printf("Account %u successfully deleted.\n", accountNum);
     }
 } // end function deleteRecord
 
 // create and insert record
-void newRecord(FILE *fPtr)
+void newRecord(struct clientData clients[])
 {
-    struct clientData client = {0, "", "", 0.0};
     unsigned int accountNum;
 
     printf("Enter new account number ( 1 - 100 ): ");
@@ -235,60 +212,48 @@ void newRecord(FILE *fPtr)
         return;
     }
 
-    if (accountNum < 1 || accountNum > 100)
+    if (accountNum < 1 || accountNum > MAX_RECORDS)
     {
         printf("Invalid account number.\n");
         return;
     }
 
-    readRecord(fPtr, accountNum, &client);
-
-    if (client.acctNum != 0)
+    if (clients[accountNum - 1].acctNum != 0)
     {
-        printf("Account #%u already contains information.\n", client.acctNum);
+        printf("Account #%u already contains information.\n", accountNum);
     }
     else
     {
         printf("Enter lastname, firstname, balance\n? ");
-        if (scanf("%14s%9s%lf", client.lastName, client.firstName, &client.balance) != 3) {
+        if (scanf("%14s%9s%lf", clients[accountNum - 1].lastName, clients[accountNum - 1].firstName, &clients[accountNum - 1].balance) != 3) {
             clearInputBuffer();
             printf("Invalid input details provided.\n");
             return;
         }
 
-        client.acctNum = accountNum;
-        writeRecord(fPtr, accountNum, &client);
+        clients[accountNum - 1].acctNum = accountNum;
         printf("Account %u successfully created.\n", accountNum);
     }
 } // end function newRecord
 
 // list all accounts
-void listAccounts(FILE *fPtr)
+void listAccounts(const struct clientData clients[])
 {
-    struct clientData clients[10];
-    size_t recordsRead;
-
     printf("\n%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
     printf("---------------------------------------------\n");
 
-    rewind(fPtr); // start from beginning
-    while ((recordsRead = fread(clients, sizeof(struct clientData), 10, fPtr)) > 0)
+    for (size_t i = 0; i < MAX_RECORDS; ++i)
     {
-        for (size_t i = 0; i < recordsRead; ++i)
+        if (clients[i].acctNum != 0)
         {
-            if (clients[i].acctNum != 0)
-            {
-                printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
-            }
+            printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
         }
     }
 } // end function listAccounts
 
 // search for accounts by last name
-void searchByLastName(FILE *fPtr)
+void searchByLastName(const struct clientData clients[])
 {
-    struct clientData clients[10];
-    size_t recordsRead;
     char searchName[15];
     int found = 0;
 
@@ -302,16 +267,12 @@ void searchByLastName(FILE *fPtr)
     printf("\n%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
     printf("---------------------------------------------\n");
 
-    rewind(fPtr);
-    while ((recordsRead = fread(clients, sizeof(struct clientData), 10, fPtr)) > 0)
+    for (size_t i = 0; i < MAX_RECORDS; ++i)
     {
-        for (size_t i = 0; i < recordsRead; ++i)
+        if (clients[i].acctNum != 0 && strcmp(clients[i].lastName, searchName) == 0)
         {
-            if (clients[i].acctNum != 0 && strcmp(clients[i].lastName, searchName) == 0)
-            {
-                printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
-                found = 1;
-            }
+            printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
+            found = 1;
         }
     }
 
@@ -321,23 +282,17 @@ void searchByLastName(FILE *fPtr)
 }
 
 // calculate total balance of all accounts
-void calculateTotalBalance(FILE *fPtr)
+void calculateTotalBalance(const struct clientData clients[])
 {
-    struct clientData clients[10];
-    size_t recordsRead;
     double total = 0.0;
     int count = 0;
 
-    rewind(fPtr);
-    while ((recordsRead = fread(clients, sizeof(struct clientData), 10, fPtr)) > 0)
+    for (size_t i = 0; i < MAX_RECORDS; ++i)
     {
-        for (size_t i = 0; i < recordsRead; ++i)
+        if (clients[i].acctNum != 0)
         {
-            if (clients[i].acctNum != 0)
-            {
-                total += clients[i].balance;
-                count++;
-            }
+            total += clients[i].balance;
+            count++;
         }
     }
 
