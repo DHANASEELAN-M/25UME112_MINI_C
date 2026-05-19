@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_RECORDS 100
 
@@ -20,6 +21,7 @@ struct clientData
 // prototypes
 unsigned int enterChoice(void);
 void textFile(const struct clientData clients[]);
+void exportCSV(const struct clientData clients[]);
 void updateRecord(struct clientData clients[]);
 void newRecord(struct clientData clients[]);
 void deleteRecord(struct clientData clients[]);
@@ -29,6 +31,7 @@ void calculateTotalBalance(const struct clientData clients[]);
 void transferFunds(struct clientData clients[]);
 void applyInterest(struct clientData clients[]);
 void listOverdrafts(const struct clientData clients[]);
+void logTransaction(const char *message);
 void clearInputBuffer(void);
 
 int main(int argc, char *argv[])
@@ -51,7 +54,7 @@ int main(int argc, char *argv[])
     }
 
     // enable user to specify action in-memory
-    while ((choice = enterChoice()) != 11)
+    while ((choice = enterChoice()) != 12)
     {
         switch (choice)
         {
@@ -85,6 +88,9 @@ int main(int argc, char *argv[])
         case 10:
             listOverdrafts(clients);
             break;
+        case 11:
+            exportCSV(clients);
+            break;
         case 0:
             puts("Incorrect choice. Please enter a number.");
             break;
@@ -114,6 +120,21 @@ void clearInputBuffer(void)
 {
     int c;
     while ((c = getchar()) != '\n' && c != EOF);
+}
+
+// log a transaction to the audit trail
+void logTransaction(const char *message)
+{
+    FILE *logFile;
+    if ((logFile = fopen("transactions.log", "a")) != NULL)
+    {
+        time_t t = time(NULL);
+        struct tm *tm_info = localtime(&t);
+        char timeBuf[26];
+        strftime(timeBuf, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+        fprintf(logFile, "[%s] %s\n", timeBuf, message);
+        fclose(logFile);
+    }
 }
 
 // create formatted text file for printing
@@ -179,6 +200,10 @@ void updateRecord(struct clientData clients[])
 
         printf("%-6u%-16s%-11s%10.2f\n", clients[account - 1].acctNum, clients[account - 1].lastName, clients[account - 1].firstName, clients[account - 1].balance);
         printf("Account updated successfully.\n");
+        
+        char logMsg[100];
+        snprintf(logMsg, sizeof(logMsg), "Account %u updated balance by $%.2f. New Balance: $%.2f", account, transaction, clients[account - 1].balance);
+        logTransaction(logMsg);
     }
 } // end function updateRecord
 
@@ -209,6 +234,10 @@ void deleteRecord(struct clientData clients[])
         // wipe the struct memory clean
         memset(&clients[accountNum - 1], 0, sizeof(struct clientData));
         printf("Account %u successfully deleted.\n", accountNum);
+
+        char logMsg[100];
+        snprintf(logMsg, sizeof(logMsg), "Account %u deleted.", accountNum);
+        logTransaction(logMsg);
     }
 } // end function deleteRecord
 
@@ -245,6 +274,10 @@ void newRecord(struct clientData clients[])
 
         clients[accountNum - 1].acctNum = accountNum;
         printf("Account %u successfully created.\n", accountNum);
+
+        char logMsg[100];
+        snprintf(logMsg, sizeof(logMsg), "Account %u created. Initial Balance: $%.2f", accountNum, clients[accountNum - 1].balance);
+        logTransaction(logMsg);
     }
 } // end function newRecord
 
@@ -350,6 +383,10 @@ void transferFunds(struct clientData clients[])
     clients[toAccount - 1].balance += amount;
 
     printf("Successfully transferred $%.2f from Account #%u to Account #%u.\n", amount, fromAccount, toAccount);
+    
+    char logMsg[100];
+    snprintf(logMsg, sizeof(logMsg), "Transferred $%.2f from Account %u to Account %u", amount, fromAccount, toAccount);
+    logTransaction(logMsg);
 }
 
 // apply 5% interest to all positive balances
@@ -390,6 +427,32 @@ void listOverdrafts(const struct clientData clients[])
     }
 }
 
+// export database to CSV file
+void exportCSV(const struct clientData clients[])
+{
+    FILE *writePtr;
+
+    if ((writePtr = fopen("accounts.csv", "w")) == NULL)
+    {
+        puts("File could not be opened.");
+    }
+    else
+    {
+        fprintf(writePtr, "AccountNum,LastName,FirstName,Balance\n");
+
+        for (size_t i = 0; i < MAX_RECORDS; ++i)
+        {
+            if (clients[i].acctNum != 0)
+            {
+                fprintf(writePtr, "%u,%s,%s,%.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
+            }
+        }
+
+        fclose(writePtr);
+        printf("Data successfully exported to accounts.csv\n");
+    }
+}
+
 // enable user to input menu choice
 unsigned int enterChoice(void)
 {
@@ -405,7 +468,8 @@ unsigned int enterChoice(void)
                  "8 - transfer funds between accounts\n"
                  "9 - apply 5%% interest to active balances\n"
                  "10 - list overdraft (negative balance) accounts\n"
-                 "11 - end program\n? ");
+                 "11 - export database to CSV\n"
+                 "12 - end program\n? ");
 
     if (scanf("%u", &menuChoice) != 1) {
         clearInputBuffer();
