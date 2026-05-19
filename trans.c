@@ -118,7 +118,7 @@ void writeRecord(FILE *fPtr, unsigned int accountNum, const struct clientData *c
 void textFile(FILE *readPtr)
 {
     FILE *writePtr; // accounts.txt file pointer
-    struct clientData client = {0, "", "", 0.0};
+    struct clientData clients[100];
 
     if ((writePtr = fopen("accounts.txt", "w")) == NULL)
     {
@@ -129,11 +129,12 @@ void textFile(FILE *readPtr)
         rewind(readPtr); // sets pointer to beginning of file
         fprintf(writePtr, "%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
 
-        while (fread(&client, sizeof(struct clientData), 1, readPtr) == 1)
+        size_t recordsRead = fread(clients, sizeof(struct clientData), 100, readPtr);
+        for (size_t i = 0; i < recordsRead; ++i)
         {
-            if (client.acctNum != 0)
+            if (clients[i].acctNum != 0)
             {
-                fprintf(writePtr, "%-6u%-16s%-11s%10.2f\n", client.acctNum, client.lastName, client.firstName, client.balance);
+                fprintf(writePtr, "%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
             }
         }
 
@@ -263,17 +264,18 @@ void newRecord(FILE *fPtr)
 // list all accounts
 void listAccounts(FILE *fPtr)
 {
-    struct clientData client = {0, "", "", 0.0};
+    struct clientData clients[100];
 
     printf("\n%-6s%-16s%-11s%10s\n", "Acct", "Last Name", "First Name", "Balance");
     printf("---------------------------------------------\n");
 
     rewind(fPtr); // start from beginning
-    while (fread(&client, sizeof(struct clientData), 1, fPtr) == 1)
+    size_t recordsRead = fread(clients, sizeof(struct clientData), 100, fPtr);
+    for (size_t i = 0; i < recordsRead; ++i)
     {
-        if (client.acctNum != 0)
+        if (clients[i].acctNum != 0)
         {
-            printf("%-6u%-16s%-11s%10.2f\n", client.acctNum, client.lastName, client.firstName, client.balance);
+            printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
         }
     }
 } // end function listAccounts
@@ -281,7 +283,7 @@ void listAccounts(FILE *fPtr)
 // search for accounts by last name
 void searchByLastName(FILE *fPtr)
 {
-    struct clientData client = {0, "", "", 0.0};
+    struct clientData clients[100];
     char searchName[15];
     int found = 0;
 
@@ -296,11 +298,12 @@ void searchByLastName(FILE *fPtr)
     printf("---------------------------------------------\n");
 
     rewind(fPtr);
-    while (fread(&client, sizeof(struct clientData), 1, fPtr) == 1)
+    size_t recordsRead = fread(clients, sizeof(struct clientData), 100, fPtr);
+    for (size_t i = 0; i < recordsRead; ++i)
     {
-        if (client.acctNum != 0 && strcmp(client.lastName, searchName) == 0)
+        if (clients[i].acctNum != 0 && strcmp(clients[i].lastName, searchName) == 0)
         {
-            printf("%-6u%-16s%-11s%10.2f\n", client.acctNum, client.lastName, client.firstName, client.balance);
+            printf("%-6u%-16s%-11s%10.2f\n", clients[i].acctNum, clients[i].lastName, clients[i].firstName, clients[i].balance);
             found = 1;
         }
     }
@@ -313,16 +316,17 @@ void searchByLastName(FILE *fPtr)
 // calculate total balance of all accounts
 void calculateTotalBalance(FILE *fPtr)
 {
-    struct clientData client = {0, "", "", 0.0};
+    struct clientData clients[100];
     double total = 0.0;
     int count = 0;
 
     rewind(fPtr);
-    while (fread(&client, sizeof(struct clientData), 1, fPtr) == 1)
+    size_t recordsRead = fread(clients, sizeof(struct clientData), 100, fPtr);
+    for (size_t i = 0; i < recordsRead; ++i)
     {
-        if (client.acctNum != 0)
+        if (clients[i].acctNum != 0)
         {
-            total += client.balance;
+            total += clients[i].balance;
             count++;
         }
     }
